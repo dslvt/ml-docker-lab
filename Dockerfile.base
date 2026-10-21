@@ -1,0 +1,5 @@
+# Базовый образ лабы: Python и PyTorch для CPU.
+# Собирается дома один раз: docker build -f Dockerfile.base -t lab-base:1 .
+FROM python:3.12-slim
+RUN pip install --no-cache-dir torch==2.14.1 --index-url https://download.pytorch.org/whl/cpu \
+ && pip install --no-cache-dir numpy==2.4.6
