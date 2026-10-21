@@ -123,6 +123,8 @@ def main():
 
     mlflow = None
     if os.environ.get("MLFLOW_TRACKING_URI"):
+        # в образе нет git, без этой настройки MLflow пишет предупреждение при каждом запуске
+        os.environ.setdefault("GIT_PYTHON_REFRESH", "quiet")
         import mlflow
         mlflow.set_experiment("ranker")
         run_id = mlflow.start_run(run_id=run_id).info.run_id

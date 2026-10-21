@@ -15,7 +15,7 @@
 
 ## Шаг 1. Подготовка
 
-Команды скачивают около 3 ГБ образов и пакетов.
+Образы займут около 4 ГБ на диске.
 
 1. Установите Docker Desktop (macOS) или Docker Engine (Linux).
 2. Проверьте установку: `docker run hello-world`.
@@ -32,7 +32,7 @@
 
 ## Шаг 2. Контейнер руками и `docker commit`
 
-`docker commit` сохраняет слой записи контейнера как новый образ. `docker diff` показывает изменения в этом слое: `A` — файл добавлен, `C` — изменён.
+`docker commit` сохраняет слой записи контейнера как новый образ. `docker diff` показывает изменения в этом слое: `A` — файл добавлен, `C` — изменён. Полный вывод занимает сотни строк, `grep` оставляет новый файл и каталоги установленных пакетов.
 
 ```bash
 docker run -it --name scratch python:3.12-slim bash
@@ -43,13 +43,13 @@ exit
 ```
 
 ```bash
-docker diff scratch | grep -v /root/.cache | head -15
+docker diff scratch | grep -E 'note.txt|site-packages/[a-z_]+$'
 docker commit scratch scratch:manual
 docker run --rm scratch:manual cat /opt/note.txt
 docker history scratch:manual
 ```
 
-**Проверка:** `cat` выводит «ручная правка», верхний слой в `docker history` создан командой `bash`.
+**Проверка:** `docker diff` показывает `A /opt/note.txt` и каталог `requests`, `cat` выводит «ручная правка», верхний слой в `docker history` создан командой `bash`.
 
 **Вопрос:** можно ли по выводу `docker history scratch:manual` понять, какие команды выполнялись в контейнере?
 
@@ -117,16 +117,24 @@ docker logs -f exp1
 
 ```bash
 docker stop exp1
-docker logs exp1 | tail -3
+docker logs exp1 2>&1 | grep -E 'SIGTERM|checkpoint saved'
 docker rm exp1
 docker run -d --name exp1 --network lab_default \
   -e MLFLOW_TRACKING_URI=http://mlflow:5000 \
   -v ./data:/data:ro -v ./outputs:/outputs \
   ranker:v1 --epochs 30 --resume
-docker logs exp1 | grep resumed
+sleep 10
+docker logs exp1 2>&1 | grep resumed
 ```
 
 **Проверка:** перед остановкой в логе есть `SIGTERM received, saving checkpoint`, после запуска `resumed from epoch N`. В MLflow график того же run продолжается с эпохи N + 1.
+
+Обучение идёт в фоне ещё около трёх минут, пока его можно смотреть в MLflow. Затем дождитесь конца и удалите контейнер, иначе в шаге 8 он не даст удалить образ:
+
+```bash
+docker wait exp1
+docker rm exp1
+```
 
 ## Шаг 7. Лимит памяти
 
@@ -151,7 +159,7 @@ docker run -d -p 5001:5000 --name registry registry:3
 
 1. Отправьте `ranker:v1` в registry под именем `localhost:5001/ranker:v1`. Запишите digest из вывода `docker push`.
 2. Удалите локальные образы `localhost:5001/ranker:v1` и `ranker:v1`, затем скачайте образ из registry.
-3. Измените текст первого `print` в `src/train.py`, соберите образ и отправьте его в registry под тем же тегом `localhost:5001/ranker:v1`.
+3. В `src/train.py` измените текст строки `device=…`, которую обучение печатает при запуске. Соберите образ и отправьте его в registry под тем же тегом `localhost:5001/ranker:v1`.
 4. Скачайте первую версию по digest из пункта 1 и запустите обе версии на одну эпоху.
 
 **Проверка:** `docker images --digests localhost:5001/ranker` показывает два разных digest. Версия по digest печатает старый текст, версия по тегу `v1` печатает новый.
